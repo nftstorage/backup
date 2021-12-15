@@ -7,7 +7,7 @@ const INSERT_BACKUP = 'INSERT INTO backup (upload_id, url) VALUES ($1, $2)'
 /**
  * @param {import('pg').Client} db
  */
-export function registerBackup(db) {
+export function registerBackup (db) {
   /**
    * @param {AsyncIterable<import('./bindings').RemoteBackup} source
    */

@@ -8,7 +8,7 @@ import * as cbor from '@ipld/dag-cbor'
 import * as json from '@ipld/dag-json'
 import * as raw from 'multiformats/codecs/raw'
 
-export async function createMemRepo() {
+export async function createMemRepo () {
   const path = `ipfs${Date.now()}`
 
   const backend = {
@@ -16,12 +16,12 @@ export async function createMemRepo() {
     blocks: new BlockstoreDatastoreAdapter(new MemoryDatastore()),
     pins: new MemoryDatastore(),
     keys: new MemoryDatastore(),
-    root: new MemoryDatastore(),
+    root: new MemoryDatastore()
   }
 
   const codecs = new Multicodecs({
     codecs: [pb, cbor, json, raw],
-    loadCodec: () => Promise.reject(new Error('No extra codecs configured')),
+    loadCodec: () => Promise.reject(new Error('No extra codecs configured'))
   })
 
   return createRepo(
@@ -29,7 +29,7 @@ export async function createMemRepo() {
     (codeOrName) => codecs.getCodec(codeOrName),
     backend,
     {
-      repoLock: MemoryLock,
+      repoLock: MemoryLock
     }
   )
 }

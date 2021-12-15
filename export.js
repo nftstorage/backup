@@ -12,12 +12,12 @@ const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 1 // don't try to transfer a DAG that'
 /**
  * @param {() => Promise<import('ipfs-core').IPFS>} getIpfs
  */
-export function exportCar(ipfs) {
+export function exportCar (ipfs) {
   /**
    * @param {AsyncIterable<import('./bindings').BackupCandidate>} source
    * @returns {AsyncIterableIterator<import('./bindings').BackupContent>}
    */
-  return async function* (source) {
+  return async function * (source) {
     for await (const candidate of source) {
       yield { ...candidate, content: ipfsDagExport(ipfs, candidate.sourceCid) }
     }
@@ -30,7 +30,7 @@ export function exportCar(ipfs) {
  * @param {import('ipfs-core').IPFS} ipfs
  * @param {import('multiformats').CID} cid
  */
-async function* ipfsDagExport(ipfs, cid) {
+async function * ipfsDagExport (ipfs, cid) {
   const log = debug(`backup:export:${cid}`)
   let reportInterval
   try {
@@ -71,7 +71,7 @@ async function* ipfsDagExport(ipfs, cid) {
  * @param {import('multiformats').CID} cid
  * @returns {Promise<number | undefined>}
  */
-async function getSize(ipfs, cid) {
+async function getSize (ipfs, cid) {
   if (cid.code === raw.code) {
     const block = await ipfs.block.get(cid, { timeout: BLOCK_TIMEOUT })
     return block.byteLength

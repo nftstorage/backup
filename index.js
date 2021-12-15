@@ -22,7 +22,7 @@ const log = debug('backup:index')
  * @param {string} config.s3SecretAccessKey S3 secret access key.
  * @param {string} config.s3BucketName S3 bucket name.
  */
-export async function startBackup({
+export async function startBackup ({
   app,
   startDate = new Date(0),
   dbConnString,
@@ -30,7 +30,7 @@ export async function startBackup({
   s3Region,
   s3AccessKeyId,
   s3SecretAccessKey,
-  s3BucketName,
+  s3BucketName
 }) {
   log('creating in-memory IPFS repo...')
   const repo = await createMemRepo()
@@ -39,7 +39,7 @@ export async function startBackup({
     init: { emptyRepo: true },
     preload: { enabled: false },
     repo,
-    config: { Bootstrap: ipfsAddrs },
+    config: { Bootstrap: ipfsAddrs }
   })
 
   log('connecting to PostgreSQL...')
@@ -51,8 +51,8 @@ export async function startBackup({
     region: s3Region,
     credentials: {
       accessKeyId: s3AccessKeyId,
-      secretAccessKey: s3SecretAccessKey,
-    },
+      secretAccessKey: s3SecretAccessKey
+    }
   })
 
   try {
@@ -81,6 +81,7 @@ export async function startBackup({
           }
           log(`garbage collected ${count} CIDs`)
         }
+        break
       }
     })
   } finally {

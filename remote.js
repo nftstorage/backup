@@ -6,11 +6,11 @@ import { Readable } from 'stream'
  * @param {import('@aws-sdk/client-s3').S3Client} s3
  * @param {string} bucketName
  */
-export function uploadCar(s3, bucketName) {
+export function uploadCar (s3, bucketName) {
   /**
    * @param {AsyncIterable<import('./bindings').BackupContent} source
    */
-  return async function* (source) {
+  return async function * (source) {
     for await (const bak of source) {
       const backupUrl = await s3Upload(s3, bucketName, bak)
       /** @type {import('./bindings').RemoteBackup} */
@@ -25,7 +25,7 @@ export function uploadCar(s3, bucketName) {
  * @param {string} bucketName
  * @param {import('./bindings').BackupContent} bak
  */
-async function s3Upload(s3, bucketName, bak) {
+async function s3Upload (s3, bucketName, bak) {
   const log = debug(`backup:remote:${bak.sourceCid}`)
   const key = `complete/${bak.contentCid}.car`
   const region = await s3.config.region()
@@ -37,8 +37,8 @@ async function s3Upload(s3, bucketName, bak) {
       Bucket: bucketName,
       Key: key,
       Body: Readable.from(bak.content),
-      Metadata: { structure: 'Complete' },
-    },
+      Metadata: { structure: 'Complete' }
+    }
   })
   await upload.done()
   log('done')

@@ -23,7 +23,7 @@ ORDER BY inserted_at ASC
    LIMIT $3
 `
 
-async function countUploads(db, startDate) {
+async function countUploads (db, startDate) {
   const { rows } = await db.query(COUNT_UPLOADS, [startDate.toISOString()])
   return rows[0].count
 }
@@ -35,7 +35,7 @@ async function countUploads(db, startDate) {
  * @param {import('./bindings').BackupCandidate['app']} app
  * @param {Date} [startDate]
  */
-export async function* getCandidate(db, app, startDate = new Date(0)) {
+export async function * getCandidate (db, app, startDate = new Date(0)) {
   const totalCandidates = await countUploads(db, startDate)
   let offset = 0
   const limit = 10000
@@ -45,7 +45,7 @@ export async function* getCandidate(db, app, startDate = new Date(0)) {
     const { rows: uploads } = await db.query(GET_UPLOADS, [
       startDate.toISOString(),
       offset,
-      limit,
+      limit
     ])
     if (!uploads.length) break
 
@@ -57,7 +57,7 @@ export async function* getCandidate(db, app, startDate = new Date(0)) {
         contentCid: CID.parse(upload.content_cid),
         userId: String(upload.user_id),
         uploadId: String(upload.id),
-        app,
+        app
       }
       yield candidate
     }
