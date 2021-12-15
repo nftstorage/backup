@@ -44,22 +44,25 @@ async function * ipfsDagExport (ipfs, cid) {
     }
 
     reportInterval = setInterval(() => {
-      log(
-        `received ${fmt(bytesReceived)} of ${
-          bytesTotal ? fmt(bytesTotal) : 'unknown'
-        } bytes`
-      )
+      const formattedTotal = bytesTotal ? fmt(bytesTotal) : 'unknown'
+      log(`received ${fmt(bytesReceived)} of ${formattedTotal} bytes`)
     }, REPORT_INTERVAL)
 
     const controller = new AbortController() // eslint-disable-line
-    let timeoutId = setTimeout(() => controller.abort(), BLOCK_TIMEOUT)
+    const onTimeout = () => {
+      log('timed out receiving blocks')
+      controller.abort()
+    }
+    let timeoutId = setTimeout(onTimeout, BLOCK_TIMEOUT)
 
-    for await (const chunk of ipfs.dag.export(cid)) {
+    for await (const chunk of ipfs.dag.export(cid, { signal: controller.signal })) {
       clearTimeout(timeoutId)
       bytesReceived += chunk.byteLength
       yield chunk
-      timeoutId = setTimeout(() => controller.abort(), BLOCK_TIMEOUT)
+      timeoutId = setTimeout(onTimeout, BLOCK_TIMEOUT)
     }
+
+    clearTimeout(timeoutId)
     log('done')
   } finally {
     clearInterval(reportInterval)
