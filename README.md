@@ -27,3 +27,12 @@ npm start -- 2021-12-25 # TODO: no work yet
 ```
 
 The tool writes _complete_ CAR files to the S3 bucket to a path like: `complete/<CID>.car`. Where `CID` is a normalized, v1 base32 encoded CID.
+
+### Docker
+
+There's a `Dockerfile` that runs the tool in docker.
+
+```sh
+docker build -t backup .
+docker run -d backup
+```
