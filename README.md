@@ -21,7 +21,9 @@ Replace `DATABASE_CONNECTION` with the connection string for the database you wa
 Start the backup:
 
 ```sh
-DEBUG=backup:* node index.js
+npm start
 # with optional start date:
-DEBUG=backup:* node index.js 2021-12-25
+npm start -- 2021-12-25 # TODO: no work yet
 ```
+
+The tool writes _complete_ CAR files to the S3 bucket to a path like: `complete/<CID>.car`. Where `CID` is a normalized, v1 base32 encoded CID.
