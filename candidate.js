@@ -7,24 +7,30 @@ const fmt = formatNumber()
 const log = debug('backup:candidate')
 
 const COUNT_UPLOADS = `
-  SELECT COUNT(*)
-    FROM upload
-   WHERE inserted_at > $1
-     AND id <> ANY(SELECT upload_id FROM backup)
+   SELECT COUNT(*)
+     FROM upload u
+LEFT JOIN backup b
+       ON u.id = b.upload_id
+    WHERE u.inserted_at > $1
+      AND b.url IS NULL
 `
 
 const GET_UPLOADS = `
-  SELECT id::TEXT, source_cid, content_cid, user_id::TEXT
-    FROM upload
-   WHERE inserted_at > $1
-     AND id <> ANY(SELECT upload_id FROM backup)
-ORDER BY inserted_at ASC
-  OFFSET $2
-   LIMIT $3
+   SELECT u.id::TEXT, u.source_cid, u.content_cid, u.user_id::TEXT
+     FROM upload u
+LEFT JOIN backup b
+       ON u.id = b.upload_id
+    WHERE u.inserted_at > $1
+      AND b.url IS NULL
+ ORDER BY u.inserted_at ASC
+   OFFSET $2
+    LIMIT $3
 `
 
 async function countUploads (db, startDate) {
+  log('counting uploads without backups...')
   const { rows } = await db.query(COUNT_UPLOADS, [startDate.toISOString()])
+  log(`found ${fmt(rows[0].count)} uploads without a backup`)
   return rows[0].count
 }
 
@@ -41,7 +47,7 @@ export async function * getCandidate (db, app, startDate = new Date(0)) {
   const limit = 10000
   let total = 0
   while (true) {
-    log(`fetching ${fmt(limit)} uploads since ${startDate.toISOString()}`)
+    log(`fetching ${fmt(limit)} uploads since ${startDate.toISOString()}...`)
     const { rows: uploads } = await db.query(GET_UPLOADS, [
       startDate.toISOString(),
       offset,
@@ -49,8 +55,8 @@ export async function * getCandidate (db, app, startDate = new Date(0)) {
     ])
     if (!uploads.length) break
 
-    log(`processing ${fmt(total + uploads.length)}/${fmt(totalCandidates)}`)
     for (const upload of uploads) {
+      log(`processing ${fmt(total + 1)} of ${fmt(totalCandidates)}`)
       /** @type {import('./bindings').BackupCandidate} */
       const candidate = {
         sourceCid: CID.parse(upload.source_cid),
@@ -60,9 +66,9 @@ export async function * getCandidate (db, app, startDate = new Date(0)) {
         app
       }
       yield candidate
+      total++
     }
 
     offset += limit
-    total += uploads.length
   }
 }

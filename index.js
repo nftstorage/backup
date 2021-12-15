@@ -81,7 +81,6 @@ export async function startBackup ({
           }
           log(`garbage collected ${count} CIDs`)
         }
-        break
       }
     })
   } finally {
