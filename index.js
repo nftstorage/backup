@@ -39,7 +39,12 @@ export async function startBackup ({
     init: { emptyRepo: true },
     preload: { enabled: false },
     repo,
-    config: { Bootstrap: ipfsAddrs }
+    config: { Bootstrap: ipfsAddrs },
+    libp2p: {
+      config: {
+        dht: { enabled: false }
+      }
+    }
   })
 
   log('connecting to PostgreSQL...')
