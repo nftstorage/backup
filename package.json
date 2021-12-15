@@ -14,11 +14,17 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.44.0",
     "@aws-sdk/lib-storage": "^3.44.0",
+    "@ipld/dag-cbor": "^7.0.0",
+    "@ipld/dag-json": "^8.0.7",
     "@ipld/dag-pb": "^2.1.15",
+    "blockstore-datastore-adapter": "^2.0.3",
+    "datastore-core": "^6.0.7",
     "debug": "^4.3.3",
     "dotenv": "^10.0.0",
     "format-number": "^3.0.0",
     "ipfs-core": "^0.12.2",
+    "ipfs-core-utils": "^0.12.2",
+    "ipfs-repo": "^13.0.7",
     "it-pipe": "^1.1.0",
     "multiformats": "^9.5.4",
     "pg": "^8.7.1"
