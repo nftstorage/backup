@@ -38,10 +38,9 @@ async function countUploads (db, startDate) {
  * Fetch a list of CIDs that need to be backed up.
  *
  * @param {import('pg').Client} db Postgres client.
- * @param {import('./bindings').BackupCandidate['app']} app
  * @param {Date} [startDate]
  */
-export async function * getCandidate (db, app, startDate = new Date(0)) {
+export async function * getCandidate (db, startDate = new Date(0)) {
   const totalCandidates = await countUploads(db, startDate)
   let offset = 0
   const limit = 10000
@@ -62,8 +61,7 @@ export async function * getCandidate (db, app, startDate = new Date(0)) {
         sourceCid: CID.parse(upload.source_cid),
         contentCid: CID.parse(upload.content_cid),
         userId: String(upload.user_id),
-        uploadId: String(upload.id),
-        app
+        uploadId: String(upload.id)
       }
       yield candidate
       total++

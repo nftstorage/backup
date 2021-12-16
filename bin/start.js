@@ -6,7 +6,6 @@ import { startBackup } from '../index.js'
 dotenv.config()
 
 startBackup({
-  app: mustGetEnv('APP'),
   startDate: process.argv[2] ? new Date(process.argv[2]) : undefined,
   dbConnString: mustGetEnv('DATABASE_CONNECTION'),
   ipfsAddrs: mustGetEnv('IPFS_ADDRS').split(','),

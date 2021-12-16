@@ -8,7 +8,6 @@ export interface BackupCandidate {
   sourceCid: CID
   contentCid: CID
   userId: string
-  app: 'nft.storage' | 'web3.storage'
 }
 
 /**

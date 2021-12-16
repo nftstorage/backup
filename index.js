@@ -14,7 +14,6 @@ const log = debug('backup:index')
 /**
  * @param {Object} config
  * @param {Date} [config.startDate] Date to consider backups for uploads from.
- * @param {string} config.app Where data is coming from/going to.
  * @param {string} config.dbConnString PostgreSQL connection string.
  * @param {string} config.ipfsAddrs Multiaddrs of IPFS nodes that have the content.
  * @param {string} config.s3Region S3 region.
@@ -23,7 +22,6 @@ const log = debug('backup:index')
  * @param {string} config.s3BucketName S3 bucket name.
  */
 export async function startBackup ({
-  app,
   startDate = new Date(0),
   dbConnString,
   ipfsAddrs,
@@ -77,7 +75,7 @@ export async function startBackup ({
   })
 
   try {
-    await pipe(getCandidate(db, app, startDate), async (source) => {
+    await pipe(getCandidate(db, startDate), async (source) => {
       // TODO: parallelise
       for await (const candidate of source) {
         log(`processing candidate ${candidate.sourceCid}`)
