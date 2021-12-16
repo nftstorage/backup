@@ -7,7 +7,6 @@ A tool to backup all data for disaster recovery.
 Drop a `.env` file in the project root and populate:
 
 ```sh
-APP=web3.storage # or nft.storage
 DATABASE_CONNECTION=<value>
 IPFS_ADDRS=<value>
 S3_REGION=<value>
