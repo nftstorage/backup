@@ -8,6 +8,7 @@ import { exportCar } from './export.js'
 import { uploadCar } from './remote.js'
 import { registerBackup } from './register.js'
 import { createMemRepo } from './ipfs-repo.js'
+import { swarmBind } from './ipfs-swarm-bind-shim.js'
 
 const log = debug('backup:index')
 
@@ -61,6 +62,9 @@ export async function startBackup ({
     }
   })
 
+  log('binding to peers...')
+  const unbind = await swarmBind(ipfs, ipfsAddrs)
+
   log('connecting to PostgreSQL...')
   const db = new pg.Client({ connectionString: dbConnString })
   await db.connect()
@@ -109,6 +113,7 @@ export async function startBackup ({
     } catch (err) {
       log('failed to close DB connection:', err)
     }
+    unbind()
     try {
       log('stopping IPFS...')
       await ipfs.stop()
