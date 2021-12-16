@@ -5,7 +5,8 @@ import formatNumber from 'format-number'
 
 const fmt = formatNumber()
 
-const BLOCK_TIMEOUT = 1000 * 60 * 3 // timeout if we don't receive a block after 3 mins
+const SIZE_TIMEOUT = 1000 * 30 // timeout if we can't figure out the size in 30s
+const BLOCK_TIMEOUT = 1000 * 60 // timeout if we don't receive a block after 1 min
 const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
 const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 1 // don't try to transfer a DAG that's bigger than 1GB
 
@@ -76,10 +77,10 @@ async function * ipfsDagExport (ipfs, cid) {
  */
 async function getSize (ipfs, cid) {
   if (cid.code === raw.code) {
-    const block = await ipfs.block.get(cid, { timeout: BLOCK_TIMEOUT })
+    const block = await ipfs.block.get(cid, { timeout: SIZE_TIMEOUT })
     return block.byteLength
   } else if (cid.code === pb.code) {
-    const stat = await ipfs.object.stat(cid, { timeout: BLOCK_TIMEOUT })
+    const stat = await ipfs.object.stat(cid, { timeout: SIZE_TIMEOUT })
     return stat.CumulativeSize
   }
 }
