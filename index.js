@@ -39,7 +39,23 @@ export async function startBackup ({
     init: { emptyRepo: true },
     preload: { enabled: false },
     repo,
-    config: { Bootstrap: ipfsAddrs },
+    config: {
+      Bootstrap: ipfsAddrs,
+      Addresses: {
+        Swarm: []
+      },
+      Discovery: {
+        MDNS: {
+          Enabled: false
+        }
+      },
+      Pubsub: {
+        Enabled: false
+      },
+      Swarm: {
+        DisableNatPortMap: true
+      }
+    },
     libp2p: {
       config: {
         dht: { enabled: false }
