@@ -46,20 +46,18 @@ export async function startBackup ({
   const roDb = new pg.Client({ connectionString: roDbConnString })
   await roDb.connect()
 
-  log('configuring S3 client...')
-  const s3 = new S3Client({
-    region: s3Region,
-    credentials: {
-      accessKeyId: s3AccessKeyId,
-      secretAccessKey: s3SecretAccessKey
-    }
-  })
-
   try {
     await pipe(getCandidate(roDb, startDate), async (source) => {
       // TODO: parallelise
       for await (const candidate of source) {
         log(`processing candidate ${candidate.sourceCid}`)
+        const s3 = new S3Client({
+          region: s3Region,
+          credentials: {
+            accessKeyId: s3AccessKeyId,
+            secretAccessKey: s3SecretAccessKey
+          }
+        })
         try {
           await pipe(
             [candidate],
