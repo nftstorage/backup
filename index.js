@@ -16,6 +16,7 @@ const log = debug('backup:index')
  * @param {Object} config
  * @param {Date} [config.startDate] Date to consider backups for uploads from.
  * @param {string} config.dbConnString PostgreSQL connection string.
+ * @param {string} config.roDbConnString Read-only PostgreSQL connection string.
  * @param {string} config.ipfsAddrs Multiaddrs of IPFS nodes that have the content.
  * @param {string} config.s3Region S3 region.
  * @param {string} config.s3AccessKeyId S3 access key ID.
@@ -23,8 +24,9 @@ const log = debug('backup:index')
  * @param {string} config.s3BucketName S3 bucket name.
  */
 export async function startBackup ({
-  startDate = new Date(0),
+  startDate = new Date('2021-03-01'), // NFT.Storage was launched in March 2021
   dbConnString,
+  roDbConnString,
   ipfsAddrs,
   s3Region,
   s3AccessKeyId,
@@ -65,9 +67,13 @@ export async function startBackup ({
   log('binding to peers...')
   const unbind = await swarmBind(ipfs, ipfsAddrs)
 
-  log('connecting to PostgreSQL...')
+  log('connecting to PostgreSQL database...')
   const db = new pg.Client({ connectionString: dbConnString })
   await db.connect()
+
+  log('connecting to read-only PostgreSQL database...')
+  const roDb = new pg.Client({ connectionString: roDbConnString })
+  await roDb.connect()
 
   log('configuring S3 client...')
   const s3 = new S3Client({
@@ -79,7 +85,7 @@ export async function startBackup ({
   })
 
   try {
-    await pipe(getCandidate(db, startDate), async (source) => {
+    await pipe(getCandidate(roDb, startDate), async (source) => {
       // TODO: parallelise
       for await (const candidate of source) {
         log(`processing candidate ${candidate.sourceCid}`)
@@ -112,6 +118,12 @@ export async function startBackup ({
       await db.end()
     } catch (err) {
       log('failed to close DB connection:', err)
+    }
+    try {
+      log('closing read-only DB connection...')
+      await roDb.end()
+    } catch (err) {
+      log('failed to close read-only DB connection:', err)
     }
     unbind()
     try {
