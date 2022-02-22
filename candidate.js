@@ -11,8 +11,8 @@ const GET_UPLOADS = `
      FROM upload u
 LEFT JOIN backup b
        ON u.id = b.upload_id
-    WHERE u.inserted_at >= $1
-      AND u.inserted_at < $2
+    WHERE u.updated_at >= $1
+      AND u.updated_at < $2
       AND b.url IS NULL
 `
 
