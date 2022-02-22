@@ -5,6 +5,7 @@ import formatNumber from 'format-number'
 const fmt = formatNumber()
 const log = debug('backup:candidate')
 const DAY = 1000 * 60 * 60 * 24
+const LIMIT = 10000
 
 const GET_UPLOADS = `
    SELECT u.id::TEXT, u.source_cid, u.content_cid, u.user_id::TEXT
@@ -14,6 +15,8 @@ LEFT JOIN backup b
     WHERE u.updated_at >= $1
       AND u.updated_at < $2
       AND b.url IS NULL
+   OFFSET $3
+    LIMIT $4
 `
 
 /**
@@ -27,21 +30,29 @@ export async function * getCandidate (db, startDate = new Date(0)) {
   let toDate = new Date(fromDate.getTime() + DAY)
   while (true) {
     log(`fetching uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()}`)
-    const { rows: uploads } = await db.query(GET_UPLOADS, [
-      fromDate.toISOString(),
-      toDate.toISOString()
-    ])
+    let offset = 0
+    while (true) {
+      const { rows: uploads } = await db.query(GET_UPLOADS, [
+        fromDate.toISOString(),
+        toDate.toISOString(),
+        offset,
+        LIMIT
+      ])
+      if (!uploads.length) break
 
-    for (const [index, upload] of uploads.entries()) {
-      log(`processing ${fmt(index + 1)} of ${fmt(uploads.length)}`)
-      /** @type {import('./bindings').BackupCandidate} */
-      const candidate = {
-        sourceCid: CID.parse(upload.source_cid),
-        contentCid: CID.parse(upload.content_cid),
-        userId: String(upload.user_id),
-        uploadId: String(upload.id)
+      for (const [index, upload] of uploads.entries()) {
+        log(`processing ${fmt(index + 1)} of ${fmt(uploads.length)} (page ${fmt(offset / LIMIT)})`)
+        /** @type {import('./bindings').BackupCandidate} */
+        const candidate = {
+          sourceCid: CID.parse(upload.source_cid),
+          contentCid: CID.parse(upload.content_cid),
+          userId: String(upload.user_id),
+          uploadId: String(upload.id)
+        }
+        yield candidate
       }
-      yield candidate
+
+      offset += LIMIT
     }
 
     fromDate = toDate
