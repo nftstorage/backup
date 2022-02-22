@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import dotenv from 'dotenv'
-import { startBackup } from '../index.js'
+import { startBackup } from './index.js'
 
 dotenv.config()
 
