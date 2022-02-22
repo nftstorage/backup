@@ -1,9 +1,7 @@
-FROM node:16-alpine
-RUN mkdir -p /home/node/app/node_modules
-WORKDIR /home/node/app
-COPY package*.json ./
-RUN chown -R node:node /home/node/app
-USER node
+FROM cimg/node:lts
+USER circleci
+RUN mkdir -p /home/circleci/app
+WORKDIR /home/circleci/app
+COPY --chown=circleci:circleci package*.json *.js bin ./
 RUN npm install
-COPY --chown=node:node . .
 CMD [ "npm", "start" ]

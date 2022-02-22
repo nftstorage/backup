@@ -3,6 +3,7 @@ import shuffle from 'array-shuffle'
 import debug from 'debug'
 
 const log = debug('backup:swarm-bind')
+const CONNECT_TIMEOUT = 1000 * 10
 
 /**
  * Say connected to one or more of the passed addrs
@@ -47,7 +48,7 @@ export async function swarmBind (ipfs, addrs, options) {
           .map(addr => (async () => {
             try {
               log(`connecting to ${addr}`)
-              await ipfs.swarm.connect(addr)
+              await ipfs.swarm.connect(addr, { timeout: CONNECT_TIMEOUT })
             } catch (err) {
               log(`failed to connect to ${addr}`, err)
             }

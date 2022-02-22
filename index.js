@@ -1,5 +1,5 @@
 import pipe from 'it-pipe'
-import * as IPFS from 'ipfs-core'
+import { create as createIpfs } from 'ipfs-http-client'
 import debug from 'debug'
 import pg from 'pg'
 import { S3Client } from '@aws-sdk/client-s3'
@@ -7,7 +7,6 @@ import { getCandidate } from './candidate.js'
 import { exportCar } from './export.js'
 import { uploadCar } from './remote.js'
 import { registerBackup } from './register.js'
-import { createMemRepo } from './ipfs-repo.js'
 import { swarmBind } from './ipfs-swarm-bind-shim.js'
 
 const log = debug('backup:index')
@@ -33,36 +32,8 @@ export async function startBackup ({
   s3SecretAccessKey,
   s3BucketName
 }) {
-  log('creating in-memory IPFS repo...')
-  const repo = await createMemRepo()
   log('starting IPFS...')
-  const ipfs = await IPFS.create({
-    init: { emptyRepo: true },
-    preload: { enabled: false },
-    repo,
-    config: {
-      Bootstrap: ipfsAddrs,
-      Addresses: {
-        Swarm: []
-      },
-      Discovery: {
-        MDNS: {
-          Enabled: false
-        }
-      },
-      Pubsub: {
-        Enabled: false
-      },
-      Swarm: {
-        DisableNatPortMap: true
-      }
-    },
-    libp2p: {
-      config: {
-        dht: { enabled: false }
-      }
-    }
-  })
+  const ipfs = createIpfs()
 
   log('binding to peers...')
   const unbind = await swarmBind(ipfs, ipfsAddrs)
@@ -101,7 +72,7 @@ export async function startBackup ({
         } finally {
           log('garbage collecting repo...')
           let count = 0
-          for await (const res of repo.gc()) {
+          for await (const res of ipfs.repo.gc()) {
             if (res.err) {
               log(`failed to GC ${res.cid}:`, res.err)
             } else {
@@ -126,11 +97,5 @@ export async function startBackup ({
       log('failed to close read-only DB connection:', err)
     }
     unbind()
-    try {
-      log('stopping IPFS...')
-      await ipfs.stop()
-    } catch (err) {
-      log('failed to stop IPFS:', err)
-    }
   }
 }
