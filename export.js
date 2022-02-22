@@ -8,7 +8,7 @@ const fmt = formatNumber()
 const SIZE_TIMEOUT = 1000 * 30 // timeout if we can't figure out the size in 30s
 const BLOCK_TIMEOUT = 1000 * 60 // timeout if we don't receive a block after 1 min
 const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
-const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 1 // don't try to transfer a DAG that's bigger than 1GB
+const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 32 // don't try to transfer a DAG that's bigger than 32GB
 
 /**
  * @param {() => Promise<import('ipfs-core').IPFS>} getIpfs
