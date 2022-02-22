@@ -3,36 +3,18 @@ import { CID } from 'multiformats'
 import formatNumber from 'format-number'
 
 const fmt = formatNumber()
-
 const log = debug('backup:candidate')
-
-const COUNT_UPLOADS = `
-   SELECT COUNT(*)
-     FROM upload u
-LEFT JOIN backup b
-       ON u.id = b.upload_id
-    WHERE u.inserted_at > $1
-      AND b.url IS NULL
-`
+const DAY = 1000 * 60 * 60 * 24
 
 const GET_UPLOADS = `
    SELECT u.id::TEXT, u.source_cid, u.content_cid, u.user_id::TEXT
      FROM upload u
 LEFT JOIN backup b
        ON u.id = b.upload_id
-    WHERE u.inserted_at > $1
+    WHERE u.inserted_at >= $1
+      AND u.inserted_at < $2
       AND b.url IS NULL
- ORDER BY u.inserted_at ASC
-   OFFSET $2
-    LIMIT $3
 `
-
-async function countUploads (db, startDate) {
-  log('counting uploads without backups...')
-  const { rows } = await db.query(COUNT_UPLOADS, [startDate.toISOString()])
-  log(`found ${fmt(rows[0].count)} uploads without a backup`)
-  return rows[0].count
-}
 
 /**
  * Fetch a list of CIDs that need to be backed up.
@@ -41,21 +23,17 @@ async function countUploads (db, startDate) {
  * @param {Date} [startDate]
  */
 export async function * getCandidate (db, startDate = new Date(0)) {
-  const totalCandidates = await countUploads(db, startDate)
-  let offset = 0
-  const limit = 10000
-  let total = 0
+  let fromDate = startDate
+  let toDate = new Date(fromDate.getTime() + DAY)
   while (true) {
-    log(`fetching ${fmt(limit)} uploads since ${startDate.toISOString()}...`)
+    log(`fetching uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()}`)
     const { rows: uploads } = await db.query(GET_UPLOADS, [
-      startDate.toISOString(),
-      offset,
-      limit
+      fromDate.toISOString(),
+      toDate.toISOString()
     ])
-    if (!uploads.length) break
 
-    for (const upload of uploads) {
-      log(`processing ${fmt(total + 1)} of ${fmt(totalCandidates)}`)
+    for (const [index, upload] of uploads.entries()) {
+      log(`processing ${fmt(index + 1)} of ${fmt(uploads.length)}`)
       /** @type {import('./bindings').BackupCandidate} */
       const candidate = {
         sourceCid: CID.parse(upload.source_cid),
@@ -64,9 +42,11 @@ export async function * getCandidate (db, startDate = new Date(0)) {
         uploadId: String(upload.id)
       }
       yield candidate
-      total++
     }
 
-    offset += limit
+    fromDate = toDate
+    toDate = new Date(fromDate.getTime() + DAY)
+
+    if (fromDate.getTime() > Date.now()) break
   }
 }

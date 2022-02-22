@@ -8,6 +8,7 @@ dotenv.config()
 startBackup({
   startDate: process.argv[2] ? new Date(process.argv[2]) : undefined,
   dbConnString: mustGetEnv('DATABASE_CONNECTION'),
+  roDbConnString: mustGetEnv('RO_DATABASE_CONNECTION'),
   ipfsAddrs: mustGetEnv('IPFS_ADDRS').split(','),
   s3Region: mustGetEnv('S3_REGION'),
   s3AccessKeyId: mustGetEnv('S3_ACCESS_KEY_ID'),
