@@ -8,7 +8,7 @@
   "scripts": {
     "start": "run-p start:*",
     "start:ipfs": "ipfs daemon --init --init-profile=server",
-    "start:backup": "NODE_TLS_REJECT_UNAUTHORIZED=0 DEBUG=backup:* node start.js",
+    "start:backup": "NODE_TLS_REJECT_UNAUTHORIZED=0 DEBUG=backup:* node bin.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Alan Shaw",

@@ -12,15 +12,17 @@ const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 32 // don't try to transfer a DAG that
 
 /**
  * @param {() => Promise<import('ipfs-core').IPFS>} getIpfs
+ * @param {Object} [options]
+ * @param {number} [options.maxDagSize] Skip DAGs that are bigger than this.
  */
-export function exportCar (ipfs) {
+export function exportCar (ipfs, options = {}) {
   /**
    * @param {AsyncIterable<import('./bindings').BackupCandidate>} source
    * @returns {AsyncIterableIterator<import('./bindings').BackupContent>}
    */
   return async function * (source) {
     for await (const candidate of source) {
-      yield { ...candidate, content: ipfsDagExport(ipfs, candidate.sourceCid) }
+      yield { ...candidate, content: ipfsDagExport(ipfs, candidate.sourceCid, options) }
     }
   }
 }
@@ -30,9 +32,13 @@ export function exportCar (ipfs) {
  *
  * @param {import('ipfs-core').IPFS} ipfs
  * @param {import('multiformats').CID} cid
+ * @param {Object} [options]
+ * @param {number} [options.maxDagSize]
  */
-async function * ipfsDagExport (ipfs, cid) {
+async function * ipfsDagExport (ipfs, cid, options) {
   const log = debug(`backup:export:${cid}`)
+  const maxDagSize = options.maxDagSize || MAX_DAG_SIZE
+
   let reportInterval
   try {
     log('determining size...')
@@ -40,8 +46,8 @@ async function * ipfsDagExport (ipfs, cid) {
     const bytesTotal = await getSize(ipfs, cid)
     log(bytesTotal == null ? 'unknown size' : `${fmt(bytesTotal)} bytes`)
 
-    if (bytesTotal != null && bytesTotal > MAX_DAG_SIZE) {
-      throw new Error(`DAG too big: ${fmt(bytesTotal)} > ${fmt(MAX_DAG_SIZE)}`)
+    if (bytesTotal != null && bytesTotal > maxDagSize) {
+      throw new Error(`DAG too big: ${fmt(bytesTotal)} > ${fmt(maxDagSize)}`)
     }
 
     reportInterval = setInterval(() => {

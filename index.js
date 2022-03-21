@@ -22,6 +22,7 @@ const log = debug('backup:index')
  * @param {string} config.s3AccessKeyId S3 access key ID.
  * @param {string} config.s3SecretAccessKey S3 secret access key.
  * @param {string} config.s3BucketName S3 bucket name.
+ * @param {number} [config.maxDagSize] Skip DAGs that are bigger than this.
  */
 export async function startBackup ({
   startDate = new Date('2021-03-01'), // NFT.Storage was launched in March 2021
@@ -31,7 +32,8 @@ export async function startBackup ({
   s3Region,
   s3AccessKeyId,
   s3SecretAccessKey,
-  s3BucketName
+  s3BucketName,
+  maxDagSize
 }) {
   log('starting IPFS...')
   const ipfs = createIpfs()
@@ -66,7 +68,7 @@ export async function startBackup ({
         try {
           await pipe(
             [candidate],
-            exportCar(ipfs),
+            exportCar(ipfs, { maxDagSize }),
             uploadCar(s3, s3BucketName),
             registerBackup(db)
           )
