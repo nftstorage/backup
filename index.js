@@ -3,6 +3,7 @@ import { create as createIpfs } from 'ipfs-http-client'
 import debug from 'debug'
 import pg from 'pg'
 import { S3Client } from '@aws-sdk/client-s3'
+import retry from 'p-retry'
 import { getCandidate } from './candidate.js'
 import { exportCar } from './export.js'
 import { uploadCar } from './remote.js'
@@ -34,6 +35,8 @@ export async function startBackup ({
 }) {
   log('starting IPFS...')
   const ipfs = createIpfs()
+  const { id } = await retry(() => ipfs.id())
+  log(`IPFS ready: ${id}`)
 
   log('binding to peers...')
   const unbind = await swarmBind(ipfs, ipfsAddrs)
