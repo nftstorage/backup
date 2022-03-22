@@ -61,6 +61,8 @@ export async function startBackup ({
   })
 
   try {
+    let totalProcessed = 0
+    let totalSuccessful = 0
     await pipe(getCandidate(roDb, startDate), async (source) => {
       // TODO: parallelise
       for await (const candidate of source) {
@@ -72,20 +74,22 @@ export async function startBackup ({
             uploadCar(s3, s3BucketName),
             registerBackup(db)
           )
+          totalSuccessful++
         } catch (err) {
           log(`failed to backup ${candidate.sourceCid}`, err)
-        } finally {
-          log('garbage collecting repo...')
-          let count = 0
-          for await (const res of ipfs.repo.gc()) {
-            if (res.err) {
-              log(`failed to GC ${res.cid}:`, res.err)
-            } else {
-              count++
-            }
-          }
-          log(`garbage collected ${count} CIDs`)
         }
+        log('garbage collecting repo...')
+        let count = 0
+        for await (const res of ipfs.repo.gc()) {
+          if (res.err) {
+            log(`failed to GC ${res.cid}:`, res.err)
+            continue
+          }
+          count++
+        }
+        log(`garbage collected ${count} CIDs`)
+        totalProcessed++
+        log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
       }
     })
   } finally {
