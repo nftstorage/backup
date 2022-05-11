@@ -97,6 +97,7 @@ export async function startBackup ({
         log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
       }
     })
+    log('backup complete 🎉')
   } finally {
     try {
       log('closing DB connection...')
