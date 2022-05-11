@@ -19,13 +19,15 @@
     "@ipld/dag-cbor": "^7.0.0",
     "@ipld/dag-json": "^8.0.7",
     "@ipld/dag-pb": "^2.1.15",
+    "@web-std/fetch": "^4.1.0",
     "array-shuffle": "^3.0.0",
     "debug": "^4.3.3",
-    "dotenv": "^10.0.0",
+    "dotenv": "^16.0.1",
     "format-number": "^3.0.0",
-    "go-ipfs": "^0.12.0",
-    "ipfs-http-client": "^56.0.1",
-    "it-pipe": "^1.1.0",
+    "go-ipfs": "^0.12.2",
+    "it-batch": "^1.0.9",
+    "it-ndjson": "^0.1.1",
+    "it-pipe": "^2.0.3",
     "multiaddr": "^10.0.1",
     "multiformats": "^9.5.4",
     "npm-run-all": "^4.1.5",
@@ -33,6 +35,6 @@
     "pg": "^8.7.1"
   },
   "devDependencies": {
-    "standard": "^16.0.4"
+    "standard": "^17.0.0"
   }
 }

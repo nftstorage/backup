@@ -5,8 +5,8 @@ import formatNumber from 'format-number'
 
 const fmt = formatNumber()
 
-const SIZE_TIMEOUT = 1000 * 30 // timeout if we can't figure out the size in 30s
-const BLOCK_TIMEOUT = 1000 * 60 // timeout if we don't receive a block after 1 min
+const SIZE_TIMEOUT = 1000 * 10 // timeout if we can't figure out the size in 10s
+const BLOCK_TIMEOUT = 1000 * 30 // timeout if we don't receive a block after 30s
 const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
 const MAX_DAG_SIZE = 1024 * 1024 * 1024 * 32 // don't try to transfer a DAG that's bigger than 32GB
 
@@ -30,7 +30,7 @@ export function exportCar (ipfs, options = {}) {
 /**
  * Export a CAR for the passed CID.
  *
- * @param {import('ipfs-core').IPFS} ipfs
+ * @param {import('./ipfs-client').IpfsClient} ipfs
  * @param {import('multiformats').CID} cid
  * @param {Object} [options]
  * @param {number} [options.maxDagSize]
@@ -44,7 +44,7 @@ async function * ipfsDagExport (ipfs, cid, options) {
     log('determining size...')
     let bytesReceived = 0
     const bytesTotal = await getSize(ipfs, cid)
-    log(bytesTotal == null ? 'unknown size' : `${fmt(bytesTotal)} bytes`)
+    log(bytesTotal == null ? 'unknown size' : `size: ${fmt(bytesTotal)} bytes`)
 
     if (bytesTotal != null && bytesTotal > maxDagSize) {
       throw new Error(`DAG too big: ${fmt(bytesTotal)} > ${fmt(maxDagSize)}`)
@@ -55,21 +55,11 @@ async function * ipfsDagExport (ipfs, cid, options) {
       log(`received ${fmt(bytesReceived)} of ${formattedTotal} bytes`)
     }, REPORT_INTERVAL)
 
-    const controller = new AbortController() // eslint-disable-line
-    const onTimeout = () => {
-      log('timed out receiving blocks')
-      controller.abort()
-    }
-    let timeoutId = setTimeout(onTimeout, BLOCK_TIMEOUT)
-
-    for await (const chunk of ipfs.dag.export(cid, { signal: controller.signal })) {
-      clearTimeout(timeoutId)
+    for await (const chunk of ipfs.dagExport(cid, { timeout: BLOCK_TIMEOUT })) {
       bytesReceived += chunk.byteLength
       yield chunk
-      timeoutId = setTimeout(onTimeout, BLOCK_TIMEOUT)
     }
 
-    clearTimeout(timeoutId)
     log('done')
   } finally {
     clearInterval(reportInterval)
@@ -77,16 +67,16 @@ async function * ipfsDagExport (ipfs, cid, options) {
 }
 
 /**
- * @param {import('ipfs-core').IPFS} ipfs
+ * @param {import('./ipfs-client').IpfsClient} ipfs
  * @param {import('multiformats').CID} cid
  * @returns {Promise<number | undefined>}
  */
 async function getSize (ipfs, cid) {
   if (cid.code === raw.code) {
-    const block = await ipfs.block.get(cid, { timeout: SIZE_TIMEOUT })
+    const block = await ipfs.blockGet(cid, { timeout: SIZE_TIMEOUT })
     return block.byteLength
   } else if (cid.code === pb.code) {
-    const stat = await ipfs.object.stat(cid, { timeout: SIZE_TIMEOUT })
+    const stat = await ipfs.objectStat(cid, { timeout: SIZE_TIMEOUT })
     return stat.CumulativeSize
   }
 }

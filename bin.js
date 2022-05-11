@@ -14,7 +14,8 @@ startBackup({
   s3AccessKeyId: mustGetEnv('S3_ACCESS_KEY_ID'),
   s3SecretAccessKey: mustGetEnv('S3_SECRET_ACCESS_KEY'),
   s3BucketName: mustGetEnv('S3_BUCKET_NAME'),
-  maxDagSize: process.env.MAX_DAG_SIZE ? parseInt(process.env.MAX_DAG_SIZE) : undefined
+  maxDagSize: process.env.MAX_DAG_SIZE ? parseInt(process.env.MAX_DAG_SIZE) : undefined,
+  concurrency: process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : undefined
 })
 
 /**

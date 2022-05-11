@@ -1,9 +1,10 @@
-import pipe from 'it-pipe'
-import { create as createIpfs } from 'ipfs-http-client'
+import { pipe } from 'it-pipe'
 import debug from 'debug'
 import pg from 'pg'
 import { S3Client } from '@aws-sdk/client-s3'
 import retry from 'p-retry'
+import batch from 'it-batch'
+import { IpfsClient } from './ipfs-client.js'
 import { getCandidate } from './candidate.js'
 import { exportCar } from './export.js'
 import { uploadCar } from './remote.js'
@@ -11,6 +12,7 @@ import { registerBackup } from './register.js'
 import { swarmBind } from './ipfs-swarm-bind-shim.js'
 
 const log = debug('backup:index')
+const CONCURRENCY = 10
 
 /**
  * @param {Object} config
@@ -23,6 +25,7 @@ const log = debug('backup:index')
  * @param {string} config.s3SecretAccessKey S3 secret access key.
  * @param {string} config.s3BucketName S3 bucket name.
  * @param {number} [config.maxDagSize] Skip DAGs that are bigger than this.
+ * @param {number} [config.concurrency] Concurrently export and upload this many DAGs.
  */
 export async function startBackup ({
   startDate = new Date('2021-03-01'), // NFT.Storage was launched in March 2021
@@ -33,12 +36,13 @@ export async function startBackup ({
   s3AccessKeyId,
   s3SecretAccessKey,
   s3BucketName,
-  maxDagSize
+  maxDagSize,
+  concurrency = CONCURRENCY
 }) {
   log('starting IPFS...')
-  const ipfs = createIpfs()
-  const { id } = await retry(() => ipfs.id())
-  log(`IPFS ready: ${id}`)
+  const ipfs = new IpfsClient()
+  const identity = await retry(() => ipfs.id(), { onFailedAttempt: console.error })
+  log(`IPFS ready: ${identity.ID}`)
 
   log('binding to peers...')
   const unbind = await swarmBind(ipfs, ipfsAddrs)
@@ -64,23 +68,24 @@ export async function startBackup ({
     let totalProcessed = 0
     let totalSuccessful = 0
     await pipe(getCandidate(roDb, startDate), async (source) => {
-      // TODO: parallelise
-      for await (const candidate of source) {
-        log(`processing candidate ${candidate.sourceCid}`)
-        try {
-          await pipe(
-            [candidate],
-            exportCar(ipfs, { maxDagSize }),
-            uploadCar(s3, s3BucketName),
-            registerBackup(db)
-          )
-          totalSuccessful++
-        } catch (err) {
-          log(`failed to backup ${candidate.sourceCid}`, err)
-        }
+      for await (const candidates of batch(source, concurrency)) {
+        await Promise.all(candidates.map(async candidate => {
+          log(`processing candidate ${candidate.sourceCid}`)
+          try {
+            await pipe(
+              [candidate],
+              exportCar(ipfs, { maxDagSize }),
+              uploadCar(s3, s3BucketName),
+              registerBackup(db)
+            )
+            totalSuccessful++
+          } catch (err) {
+            log(`failed to backup ${candidate.sourceCid}`, err)
+          }
+        }))
         log('garbage collecting repo...')
         let count = 0
-        for await (const res of ipfs.repo.gc()) {
+        for await (const res of ipfs.repoGc()) {
           if (res.err) {
             log(`failed to GC ${res.cid}:`, res.err)
             continue

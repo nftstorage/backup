@@ -13,9 +13,8 @@ export function registerBackup (db) {
    */
   return async function (source) {
     for await (const bak of source) {
-      log(`saving backup for upload ${bak.uploadId}: ${bak.backupUrl}`)
       await db.query(INSERT_BACKUP, [bak.uploadId, bak.backupUrl.toString()])
-      log('done')
+      log(`saved backup record for upload ${bak.uploadId}: ${bak.backupUrl}`)
     }
   }
 }

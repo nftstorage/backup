@@ -8,7 +8,7 @@ const CONNECT_TIMEOUT = 1000 * 10
 /**
  * Say connected to one or more of the passed addrs
  *
- * @param {import('ipfs-core').IPFS} ipfs
+ * @param {import('./ipfs-client').IpfsClient} ipfs
  * @param {Array<string|Multiaddr>} addrs
  * @param {Object} [options]
  * @param {number} [options.minConnections]
@@ -27,13 +27,13 @@ export async function swarmBind (ipfs, addrs, options) {
   let canceled = false
 
   const checkAndConnect = async () => {
-    const peers = await ipfs.swarm.peers()
+    const { Peers: peers } = await ipfs.swarmPeers()
     if (canceled) return
 
     const unconnectedAddrs = shuffle(maddrs)
       .filter(addr => {
         const peerId = addr.getPeerId()
-        const isConnected = peers.some(({ peer }) => peer === peerId)
+        const isConnected = peers.some(({ Peer }) => Peer === peerId)
         return !isConnected
       })
 
@@ -48,7 +48,7 @@ export async function swarmBind (ipfs, addrs, options) {
           .map(addr => (async () => {
             try {
               log(`connecting to ${addr}`)
-              await ipfs.swarm.connect(addr, { timeout: CONNECT_TIMEOUT })
+              await ipfs.swarmConnect(addr, { timeout: CONNECT_TIMEOUT })
             } catch (err) {
               log(`failed to connect to ${addr}`, err)
             }
