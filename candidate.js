@@ -22,29 +22,38 @@ LEFT JOIN backup b
  * Fetch a list of CIDs that need to be backed up.
  *
  * @param {import('pg').Client} db Postgres client.
- * @param {Date} [startDate]
+ * @param {Object} [options]
+ * @param {Date} [options.startDate]
+ * @param {(cid: CID) => Promise<boolean>} [options.filter]
  */
-export async function * getCandidate (db, startDate = new Date(0)) {
+export async function * getCandidate (db, options = {}) {
+  const startDate = options.startDate || new Date(0)
   let fromDate = startDate
   let toDate = new Date(fromDate.getTime() + DAY)
+  const filter = options.filter || (async () => true)
   while (true) {
     log(`fetching uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()}`)
     let offset = 0
     while (true) {
+      log(`fetching page ${fmt(offset / LIMIT)} of uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()}`)
       const { rows } = await db.query(GET_UPLOADS, [
         fromDate.toISOString(),
         toDate.toISOString(),
         offset,
         LIMIT
       ])
+      if (!rows.length) break
       const uploads = rows.filter(r => !r.url)
-      if (!uploads.length) break
 
       for (const [index, upload] of uploads.entries()) {
-        log(`processing ${fmt(index + 1)} of ${fmt(uploads.length)} (page ${fmt(offset / LIMIT)} of uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()})`)
+        const sourceCid = CID.parse(upload.source_cid)
+        const keep = await filter(sourceCid)
+        if (!keep) continue
+
+        log(`processing item ${fmt(index + 1)} of ${fmt(uploads.length)} (page ${fmt(offset / LIMIT)} of uploads between ${fromDate.toISOString()} -> ${toDate.toISOString()})`)
         /** @type {import('./bindings').BackupCandidate} */
         const candidate = {
-          sourceCid: CID.parse(upload.source_cid),
+          sourceCid,
           contentCid: CID.parse(upload.content_cid),
           userId: String(upload.user_id),
           uploadId: String(upload.id)

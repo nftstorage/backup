@@ -4,6 +4,7 @@ import pg from 'pg'
 import { S3Client } from '@aws-sdk/client-s3'
 import retry from 'p-retry'
 import batch from 'it-batch'
+import { createClient as createRedisClient } from 'redis'
 import { IpfsClient } from './ipfs-client.js'
 import { getCandidate } from './candidate.js'
 import { exportCar } from './export.js'
@@ -26,6 +27,7 @@ const CONCURRENCY = 10
  * @param {string} config.s3BucketName S3 bucket name.
  * @param {number} [config.maxDagSize] Skip DAGs that are bigger than this.
  * @param {number} [config.concurrency] Concurrently export and upload this many DAGs.
+ * @param {string} [config.redisConnString] Redis connection string, for storing state about certain CIDs.
  */
 export async function startBackup ({
   startDate = new Date('2021-03-01'), // NFT.Storage was launched in March 2021
@@ -37,10 +39,12 @@ export async function startBackup ({
   s3SecretAccessKey,
   s3BucketName,
   maxDagSize,
-  concurrency = CONCURRENCY
+  concurrency = CONCURRENCY,
+  redisConnString
 }) {
   log('starting IPFS...')
   const ipfs = new IpfsClient()
+  await new Promise(resolve => setTimeout(resolve, 1000))
   const identity = await retry(() => ipfs.id(), { onFailedAttempt: console.error })
   log(`IPFS ready: ${identity.ID}`)
 
@@ -64,10 +68,38 @@ export async function startBackup ({
     }
   })
 
+  /** @type {import('redis').RedisClientType|undefined} */
+  let redis
+  if (redisConnString) {
+    log('connecting to Redis database...')
+    redis = createRedisClient({ url: redisConnString })
+    redis.on('error', err => log('redis error', err))
+    await redis.connect()
+  }
+
+  /** @type {(cid: import('multiformats').CID) => Promise<boolean>|undefined} */
+  let filter
+  if (redis) {
+    filter = async cid => {
+      try {
+        const data = await redis.get(cid.toString())
+        if (!data) return true
+        const info = JSON.parse(data)
+        if (!info.error) return true
+        const keep = info.error.code !== 'ERR_TIMEOUT' // only skip the CIDs we timed out
+        if (!keep) log(`skipping ${cid} due to previous timeout`)
+        return keep
+      } catch (err) {
+        log(`failed to get info for: ${cid}`, err)
+        return true
+      }
+    }
+  }
+
   try {
     let totalProcessed = 0
     let totalSuccessful = 0
-    await pipe(getCandidate(roDb, startDate), async (source) => {
+    await pipe(getCandidate(roDb, { startDate, filter }), async (source) => {
       for await (const candidates of batch(source, concurrency)) {
         await Promise.all(candidates.map(async candidate => {
           log(`processing candidate ${candidate.sourceCid}`)
@@ -79,8 +111,15 @@ export async function startBackup ({
               registerBackup(db)
             )
             totalSuccessful++
+            if (redis) await redis.del(candidate.sourceCid.toString())
           } catch (err) {
             log(`failed to backup ${candidate.sourceCid}`, err)
+            if (redis) {
+              await redis.set(candidate.sourceCid.toString(), JSON.stringify({
+                error: { message: err.message, code: err.code },
+                timestamp: Date.now()
+              }))
+            }
           }
         }))
         log('garbage collecting repo...')
@@ -110,6 +149,14 @@ export async function startBackup ({
       await roDb.end()
     } catch (err) {
       log('failed to close read-only DB connection:', err)
+    }
+    if (redis) {
+      try {
+        log('disconnecting redis...')
+        await redis.disconnect()
+      } catch (err) {
+        log('failed to disconnect redis:', err)
+      }
     }
     unbind()
   }

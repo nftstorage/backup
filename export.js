@@ -47,7 +47,10 @@ async function * ipfsDagExport (ipfs, cid, options) {
     log(bytesTotal == null ? 'unknown size' : `size: ${fmt(bytesTotal)} bytes`)
 
     if (bytesTotal != null && bytesTotal > maxDagSize) {
-      throw new Error(`DAG too big: ${fmt(bytesTotal)} > ${fmt(maxDagSize)}`)
+      throw Object.assign(
+        new Error(`DAG too big: ${fmt(bytesTotal)} > ${fmt(maxDagSize)}`),
+        { code: 'ERR_TOO_BIG' }
+      )
     }
 
     reportInterval = setInterval(() => {
