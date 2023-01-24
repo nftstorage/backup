@@ -6,17 +6,13 @@ import { startBackup } from './index.js'
 dotenv.config()
 
 startBackup({
-  startDate: process.argv[2] ? new Date(process.argv[2]) : undefined,
-  dbConnString: mustGetEnv('DATABASE_CONNECTION'),
-  roDbConnString: mustGetEnv('RO_DATABASE_CONNECTION'),
-  ipfsAddrs: mustGetEnv('IPFS_ADDRS').split(','),
+  dataURL: mustGetEnv('DATA_URL'),
   s3Region: mustGetEnv('S3_REGION'),
-  s3AccessKeyId: mustGetEnv('S3_ACCESS_KEY_ID'),
-  s3SecretAccessKey: mustGetEnv('S3_SECRET_ACCESS_KEY'),
   s3BucketName: mustGetEnv('S3_BUCKET_NAME'),
-  maxDagSize: process.env.MAX_DAG_SIZE ? parseInt(process.env.MAX_DAG_SIZE) : undefined,
+  s3AccessKeyId: process.env.S3_ACCESS_KEY_ID,
+  s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
   concurrency: process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : undefined,
-  redisConnString: process.env.REDIS_CONN_STRING
+  batchSize: process.env.BATCH_SIZE ? parseInt(process.env.BATCH_SIZE) : undefined
 })
 
 /**

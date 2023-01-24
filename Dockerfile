@@ -1,4 +1,4 @@
-FROM cimg/node:16.14.2
+FROM cimg/node:18.13.0
 USER circleci
 RUN mkdir -p /home/circleci/app
 WORKDIR /home/circleci/app

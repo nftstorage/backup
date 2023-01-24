@@ -1,5 +1,3 @@
-/* global AbortController */
-import { fetch } from '@web-std/fetch'
 import { parse } from 'it-ndjson'
 
 const endpoint = 'http://127.0.0.1:5001'
