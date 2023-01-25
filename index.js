@@ -58,15 +58,18 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
           transform(concurrency ?? CONCURRENCY, async (item) => {
             log(`processing ${item.cid}`)
             try {
-              await swarmConnect(ipfs, item)
-              let size = 0
-              const source = (async function * () {
-                for await (const chunk of exportCar(ipfs, item)) {
-                  size += chunk.length
-                  yield chunk
-                }
-              })()
-              await s3Upload(s3, s3BucketName, item, source)
+              const size = await retry(async () => {
+                await swarmConnect(ipfs, item)
+                let size = 0
+                const source = (async function * () {
+                  for await (const chunk of exportCar(ipfs, item)) {
+                    size += chunk.length
+                    yield chunk
+                  }
+                })()
+                await s3Upload(s3, s3BucketName, item, source)
+                return size
+              })
               totalSuccessful++
               return { cid: item.cid, status: 'ok', size }
             } catch (err) {
