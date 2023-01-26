@@ -19,7 +19,7 @@
     "debug": "^4.3.3",
     "dotenv": "^16.0.1",
     "format-number": "^3.0.0",
-    "go-ipfs": "^0.12.2",
+    "go-ipfs": "^0.18.0",
     "it-batch": "^2.0.0",
     "it-ndjson": "^0.1.1",
     "it-pipe": "^2.0.5",
