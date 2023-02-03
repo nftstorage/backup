@@ -11,7 +11,6 @@ import formatNumber from 'format-number'
 import { CID } from 'multiformats'
 import { IpfsClient } from './ipfs-client.js'
 
-const log = debug('backup')
 const fmt = formatNumber()
 
 const BATCH_SIZE = 100
@@ -32,6 +31,7 @@ const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
  * @param {number} [config.batchSize]
  */
 export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, concurrency, batchSize }) {
+  const log = debug(`backup:${dataURL.substring(dataURL.lastIndexOf('/') + 1)}`)
   log('starting IPFS...')
   const ipfs = new IpfsClient()
   await new Promise(resolve => setTimeout(resolve, 1000))
@@ -49,7 +49,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
   let totalSuccessful = 0
   await pipe(
     fetchCID(dataURL),
-    filterAlreadyStored(s3, s3BucketName),
+    filterAlreadyStored(s3, s3BucketName, log),
     source => batch(source, batchSize ?? BATCH_SIZE),
     async function (source) {
       for await (const batch of source) {
@@ -59,15 +59,15 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
             log(`processing ${item.cid}`)
             try {
               const size = await retry(async () => {
-                await swarmConnect(ipfs, item)
+                await swarmConnect(ipfs, item, log)
                 let size = 0
                 const source = (async function * () {
-                  for await (const chunk of exportCar(ipfs, item)) {
+                  for await (const chunk of exportCar(ipfs, item, log)) {
                     size += chunk.length
                     yield chunk
                   }
                 })()
-                await s3Upload(s3, s3BucketName, item, source)
+                await s3Upload(s3, s3BucketName, item, source, log)
                 return size
               })
               totalSuccessful++
@@ -109,7 +109,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
  */
 async function * fetchCID (url) {
   const res = await fetch(url)
-  if (!res.ok || !res.body) throw new Error(`failed to fetch CIDs: ${url}`)
+  if (!res.ok || !res.body) throw new Error(`Backup:${url} failed to fetch CIDs`)
   // @ts-ignore
   yield * parse(res.body)
 }
@@ -121,7 +121,7 @@ const bucketKey = cid => `complete/${CID.parse(cid).toV1()}.car`
  * @param {S3Client} s3
  * @param {string} bucket
  */
-function filterAlreadyStored (s3, bucket) {
+function filterAlreadyStored (s3, bucket, log) {
   /** @param {import('it-pipe').Source<InputData>} source */
   return async function * (source) {
     yield * pipe(
@@ -148,7 +148,7 @@ function filterAlreadyStored (s3, bucket) {
 /**
  * @param {IpfsClient} ipfs
  */
-async function * exportCar (ipfs, item) {
+async function * exportCar (ipfs, item, log) {
   let reportInterval
   try {
     let bytesReceived = 0
@@ -169,7 +169,7 @@ async function * exportCar (ipfs, item) {
 /**
  * @param {IpfsClient} ipfs
  */
-async function swarmConnect (ipfs, item) {
+async function swarmConnect (ipfs, item, log) {
   if (!item.pinned_peers?.length) return
   let connected = 0
   for (const peer of item.pinned_peers) {
@@ -187,7 +187,7 @@ async function swarmConnect (ipfs, item) {
  * @param {InputData} item
  * @param {AsyncIterable<Uint8Array>} content
  */
-async function s3Upload (s3, bucketName, item, content) {
+async function s3Upload (s3, bucketName, item, content, log) {
   const key = bucketKey(item.cid)
   const upload = new Upload({
     client: s3,
