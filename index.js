@@ -72,10 +72,10 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
                 return size
               })
               totalSuccessful++
-              return { cid: item.cid, status: 'ok', size }
+              return { sourceDataFile, cid: item.cid, status: 'ok', size }
             } catch (err) {
               log(`failed to backup ${item.cid}`, err)
-              return { fileName: sourceDataFile, cid: item.cid, status: 'error', error: err.message }
+              return { sourceDataFile, cid: item.cid, status: 'error', error: err.message }
             } finally {
               totalProcessed++
               log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
