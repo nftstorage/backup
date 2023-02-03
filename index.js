@@ -49,7 +49,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
   let totalProcessed = 0
   let totalSuccessful = 0
   await pipe(
-    fetchCID(dataURL),
+    fetchCID(dataURL, log),
     filterAlreadyStored(s3, s3BucketName, log),
     source => batch(source, batchSize ?? BATCH_SIZE),
     async function (source) {
@@ -108,7 +108,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
  * @param {string|URL} url
  * @returns {AsyncIterable<InputData>}
  */
-async function * fetchCID (url) {
+async function * fetchCID (url, log) {
   const res = await fetch(url)
   if (!res.ok || !res.body) {
     errMessage = `failed to fetch CIDs: ${url}`
