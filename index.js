@@ -31,7 +31,8 @@ const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
  * @param {number} [config.batchSize]
  */
 export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, concurrency, batchSize }) {
-  const log = debug(`backup:${dataURL.substring(dataURL.lastIndexOf('/') + 1)}`)
+  const sourceDataFile = dataURL.substring(dataURL.lastIndexOf('/') + 1)
+  const log = debug(`backup:${sourceDataFile}`)
   log('starting IPFS...')
   const ipfs = new IpfsClient()
   await new Promise(resolve => setTimeout(resolve, 1000))
@@ -74,7 +75,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
               return { cid: item.cid, status: 'ok', size }
             } catch (err) {
               log(`failed to backup ${item.cid}`, err)
-              return { cid: item.cid, status: 'error', error: err.message }
+              return { fileName: sourceDataFile, cid: item.cid, status: 'error', error: err.message }
             } finally {
               totalProcessed++
               log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
