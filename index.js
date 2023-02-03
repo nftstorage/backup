@@ -111,7 +111,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
 async function * fetchCID (url, log) {
   const res = await fetch(url)
   if (!res.ok || !res.body) {
-    errMessage = `failed to fetch CIDs: ${url}`
+    const errMessage = `failed to fetch CIDs: ${url}`
     log(errMessage)
     throw new Error(errMessage)
   }
