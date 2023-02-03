@@ -1,128 +1,94 @@
-import { pipe } from 'it-pipe'
 import debug from 'debug'
-import pg from 'pg'
-import { S3Client } from '@aws-sdk/client-s3'
+import { Readable } from 'stream'
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import retry from 'p-retry'
+import { transform } from 'streaming-iterables'
+import { parse } from 'it-ndjson'
+import { pipe } from 'it-pipe'
 import batch from 'it-batch'
-import { createClient as createRedisClient } from 'redis'
+import formatNumber from 'format-number'
+import { CID } from 'multiformats'
 import { IpfsClient } from './ipfs-client.js'
-import { getCandidate } from './candidate.js'
-import { exportCar } from './export.js'
-import { uploadCar } from './remote.js'
-import { registerBackup } from './register.js'
-import { swarmBind } from './ipfs-swarm-bind-shim.js'
 
-const log = debug('backup:index')
+const fmt = formatNumber()
+
+const BATCH_SIZE = 100
 const CONCURRENCY = 10
+const BLOCK_TIMEOUT = 1000 * 30 // timeout if we don't receive a block after 30s
+const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
+
+/** @typedef {{ cid: string, pinned_peers: string[] }} InputData */
 
 /**
  * @param {Object} config
- * @param {Date} [config.startDate] Date to consider backups for uploads from.
- * @param {string} config.dbConnString PostgreSQL connection string.
- * @param {string} config.roDbConnString Read-only PostgreSQL connection string.
- * @param {string} config.ipfsAddrs Multiaddrs of IPFS nodes that have the content.
+ * @param {string|URL} config.dataURL
  * @param {string} config.s3Region S3 region.
- * @param {string} config.s3AccessKeyId S3 access key ID.
- * @param {string} config.s3SecretAccessKey S3 secret access key.
  * @param {string} config.s3BucketName S3 bucket name.
- * @param {number} [config.maxDagSize] Skip DAGs that are bigger than this.
- * @param {number} [config.concurrency] Concurrently export and upload this many DAGs.
- * @param {string} [config.redisConnString] Redis connection string, for storing state about certain CIDs.
+ * @param {string} [config.s3AccessKeyId]
+ * @param {string} [config.s3SecretAccessKey]
+ * @param {number} [config.concurrency]
+ * @param {number} [config.batchSize]
  */
-export async function startBackup ({
-  startDate = new Date('2021-03-01'), // NFT.Storage was launched in March 2021
-  dbConnString,
-  roDbConnString,
-  ipfsAddrs,
-  s3Region,
-  s3AccessKeyId,
-  s3SecretAccessKey,
-  s3BucketName,
-  maxDagSize,
-  concurrency = CONCURRENCY,
-  redisConnString
-}) {
+export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, concurrency, batchSize }) {
+  const sourceDataFile = dataURL.substring(dataURL.lastIndexOf('/') + 1)
+  const log = debug(`backup:${sourceDataFile}`)
   log('starting IPFS...')
   const ipfs = new IpfsClient()
   await new Promise(resolve => setTimeout(resolve, 1000))
   const identity = await retry(() => ipfs.id(), { onFailedAttempt: console.error })
   log(`IPFS ready: ${identity.ID}`)
 
-  log('binding to peers...')
-  const unbind = await swarmBind(ipfs, ipfsAddrs)
-
-  log('connecting to PostgreSQL database...')
-  const db = new pg.Client({ connectionString: dbConnString })
-  await db.connect()
-
-  log('connecting to read-only PostgreSQL database...')
-  const roDb = new pg.Client({ connectionString: roDbConnString })
-  await roDb.connect()
-
   log('configuring S3 client...')
-  const s3 = new S3Client({
-    region: s3Region,
-    credentials: {
-      accessKeyId: s3AccessKeyId,
-      secretAccessKey: s3SecretAccessKey
-    }
-  })
-
-  /** @type {import('redis').RedisClientType|undefined} */
-  let redis
-  if (redisConnString) {
-    log('connecting to Redis database...')
-    redis = createRedisClient({ url: redisConnString })
-    redis.on('error', err => log('redis error', err))
-    await redis.connect()
+  const s3Conf = { region: s3Region }
+  if (s3AccessKeyId && s3SecretAccessKey) {
+    s3Conf.credentials = { accessKeyId: s3AccessKeyId, secretAccessKey: s3SecretAccessKey }
   }
+  const s3 = new S3Client(s3Conf)
 
-  /** @type {(cid: import('multiformats').CID) => Promise<boolean>|undefined} */
-  let filter
-  if (redis) {
-    filter = async cid => {
-      try {
-        const data = await redis.get(cid.toString())
-        if (!data) return true
-        const info = JSON.parse(data)
-        if (!info.error) return true
-        const keep = info.error.code !== 'ERR_TIMEOUT' // only skip the CIDs we timed out
-        if (!keep) log(`skipping ${cid} due to previous timeout`)
-        return keep
-      } catch (err) {
-        log(`failed to get info for: ${cid}`, err)
-        return true
-      }
-    }
-  }
-
-  try {
-    let totalProcessed = 0
-    let totalSuccessful = 0
-    await pipe(getCandidate(roDb, { startDate, filter }), async (source) => {
-      for await (const candidates of batch(source, concurrency)) {
-        await Promise.all(candidates.map(async candidate => {
-          log(`processing candidate ${candidate.sourceCid}`)
-          try {
-            await pipe(
-              [candidate],
-              exportCar(ipfs, { maxDagSize }),
-              uploadCar(s3, s3BucketName),
-              registerBackup(db)
-            )
-            totalSuccessful++
-            if (redis) await redis.del(candidate.sourceCid.toString())
-          } catch (err) {
-            log(`failed to backup ${candidate.sourceCid}`, err)
-            if (redis) {
-              await redis.set(candidate.sourceCid.toString(), JSON.stringify({
-                error: { message: err.message, code: err.code },
-                timestamp: Date.now()
-              }))
+  let totalProcessed = 0
+  let totalSuccessful = 0
+  await pipe(
+    fetchCID(dataURL, log),
+    filterAlreadyStored(s3, s3BucketName, log),
+    source => batch(source, batchSize ?? BATCH_SIZE),
+    async function (source) {
+      for await (const batch of source) {
+        await pipe(
+          batch,
+          transform(concurrency ?? CONCURRENCY, async (item) => {
+            log(`processing ${item.cid}`)
+            try {
+              const size = await retry(async () => {
+                await swarmConnect(ipfs, item, log)
+                let size = 0
+                const source = (async function * () {
+                  for await (const chunk of exportCar(ipfs, item, log)) {
+                    size += chunk.length
+                    yield chunk
+                  }
+                })()
+                await s3Upload(s3, s3BucketName, item, source, log)
+                return size
+              })
+              totalSuccessful++
+              return { sourceDataFile, cid: item.cid, status: 'ok', size }
+            } catch (err) {
+              log(`failed to backup ${item.cid}`, err)
+              return { sourceDataFile, cid: item.cid, status: 'error', error: err.message }
+            } finally {
+              totalProcessed++
+              log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
+            }
+          }),
+          async function (source) {
+            for await (const item of source) {
+              console.log(JSON.stringify(item))
             }
           }
-        }))
-        log('garbage collecting repo...')
+        )
+
+        log(`garbage collecting batch of ${batch.length} root CIDs`)
         let count = 0
         for await (const res of ipfs.repoGc()) {
           if (res.err) {
@@ -132,32 +98,111 @@ export async function startBackup ({
           count++
         }
         log(`garbage collected ${count} CIDs`)
-        totalProcessed++
-        log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
-      }
-    })
-    log('backup complete 🎉')
-  } finally {
-    try {
-      log('closing DB connection...')
-      await db.end()
-    } catch (err) {
-      log('failed to close DB connection:', err)
-    }
-    try {
-      log('closing read-only DB connection...')
-      await roDb.end()
-    } catch (err) {
-      log('failed to close read-only DB connection:', err)
-    }
-    if (redis) {
-      try {
-        log('disconnecting redis...')
-        await redis.disconnect()
-      } catch (err) {
-        log('failed to disconnect redis:', err)
       }
     }
-    unbind()
+  )
+  log('backup complete 🎉')
+}
+
+/**
+ * @param {string|URL} url
+ * @returns {AsyncIterable<InputData>}
+ */
+async function * fetchCID (url, log) {
+  const res = await fetch(url)
+  if (!res.ok || !res.body) {
+    const errMessage = `failed to fetch CIDs: ${url}`
+    log(errMessage)
+    throw new Error(errMessage)
   }
+  // @ts-ignore
+  yield * parse(res.body)
+}
+
+/** @param {string} cid */
+const bucketKey = cid => `complete/${CID.parse(cid).toV1()}.car`
+
+/**
+ * @param {S3Client} s3
+ * @param {string} bucket
+ */
+function filterAlreadyStored (s3, bucket, log) {
+  /** @param {import('it-pipe').Source<InputData>} source */
+  return async function * (source) {
+    yield * pipe(
+      source,
+      transform(CONCURRENCY, async item => {
+        const cmd = new HeadObjectCommand({ Bucket: bucket, Key: bucketKey(item.cid) })
+        try {
+          await s3.send(cmd)
+          log(`${item.cid} is already in S3`)
+          return null
+        } catch {
+          return item
+        }
+      }),
+      async function * (source) {
+        for await (const item of source) {
+          if (item != null) yield item
+        }
+      }
+    )
+  }
+}
+
+/**
+ * @param {IpfsClient} ipfs
+ */
+async function * exportCar (ipfs, item, log) {
+  let reportInterval
+  try {
+    let bytesReceived = 0
+
+    reportInterval = setInterval(() => {
+      log(`received ${fmt(bytesReceived)} bytes of ${item.cid}`)
+    }, REPORT_INTERVAL)
+
+    for await (const chunk of ipfs.dagExport(item.cid, { timeout: BLOCK_TIMEOUT })) {
+      bytesReceived += chunk.byteLength
+      yield chunk
+    }
+  } finally {
+    clearInterval(reportInterval)
+  }
+}
+
+/**
+ * @param {IpfsClient} ipfs
+ */
+async function swarmConnect (ipfs, item, log) {
+  if (!item.pinned_peers?.length) return
+  let connected = 0
+  for (const peer of item.pinned_peers) {
+    try {
+      await ipfs.swarmConnect(`/p2p/${peer}`)
+      connected++
+    } catch {}
+  }
+  log(`${connected} of ${item.pinned_peers.length} peers connected for ${item.cid}`)
+}
+
+/**
+ * @param {import('@aws-sdk/client-s3').S3Client} s3
+ * @param {string} bucketName
+ * @param {InputData} item
+ * @param {AsyncIterable<Uint8Array>} content
+ */
+async function s3Upload (s3, bucketName, item, content, log) {
+  const key = bucketKey(item.cid)
+  const upload = new Upload({
+    client: s3,
+    params: {
+      Bucket: bucketName,
+      Key: key,
+      Body: Readable.from(content),
+      Metadata: { structure: 'Complete' }
+    }
+  })
+  await upload.done()
+  log(`${item.cid} successfully uploaded to ${bucketName}/${key}`)
 }

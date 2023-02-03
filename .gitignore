@@ -1,2 +1,5 @@
 node_modules
 .env
+out
+dedupe
+pinned
