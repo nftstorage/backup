@@ -19,8 +19,9 @@ test('backup a dag', async t => {
   const accessKeyId = 'minioadmin'
   const secretAccessKey = 'minioadmin'
   const bucketName = 'backup-test'
+  const region = 'us-east-1'
 
-  const mb = await createBucket(bucketName, minio, accessKeyId, secretAccessKey)
+  const mb = await createBucket(bucketName, minio, accessKeyId, secretAccessKey, region)
   t.is(mb.$metadata.httpStatusCode, 200)
 
   const img = await GenericContainer.fromDockerfile('.').build()
@@ -33,7 +34,7 @@ test('backup a dag', async t => {
     DEBUG: 'backup:*',
     DATA_URL: 'https://bafybeiha7xoedojqjz6ghxdtbf7yx2eklwo7db36772u3odrjusqck3ljm.ipfs.w3s.link/ipfs/bafybeiha7xoedojqjz6ghxdtbf7yx2eklwo7db36772u3odrjusqck3ljm/nft-0.json',
     S3_ENDPOINT: s3Endpoint,
-    S3_REGION: 'us-east-1',
+    S3_REGION: region,
     S3_BUCKET_NAME: bucketName,
     S3_ACCESS_KEY_ID: accessKeyId,
     S3_SECRET_ACCESS_KEY: secretAccessKey
@@ -52,9 +53,10 @@ test('backup a dag', async t => {
   }
 })
 
-async function createBucket (bucketName, minio, accessKeyId, secretAccessKey) {
+async function createBucket (bucketName, minio, accessKeyId, secretAccessKey, region) {
   const endpoint = `http://${minio.getHost()}:${minio.getMappedPort(9000)}` // host to container
   const s3 = new S3Client({
+    region,
     endpoint,
     forcePathStyle: true,
     credentials: {
