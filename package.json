@@ -6,10 +6,11 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "run-p start:*",
-    "start:ipfs": "ipfs daemon --init --init-profile=server",
+    "start": "npm-run-all -s ipfs-config -p start:*",
+    "start:ipfs": "ipfs daemon",
     "start:backup": "node bin.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "ipfs-config":"ipfs init --profile=server --empty-repo && ./ipfs-config.sh"
   },
   "author": "Alan Shaw",
   "license": "(Apache-2.0 OR MIT)",

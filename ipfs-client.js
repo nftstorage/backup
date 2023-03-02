@@ -82,11 +82,6 @@ async function withTimeout (signalReceiver, timeout = TIMEOUT) {
   try {
     const res = await signalReceiver(controller.signal)
     return res
-  } catch (err) {
-    if (controller.signal.aborted && err.name === 'AbortError') {
-      err.code = 'ERR_TIMEOUT'
-    }
-    throw err
   } finally {
     clearTimeout(tid)
   }
@@ -108,11 +103,6 @@ async function * withChunkTimeout (signalReceiver, timeout = TIMEOUT) {
       tid = setTimeout(onTimeout, timeout)
       yield chunk
     }
-  } catch (err) {
-    if (controller.signal.aborted && err.name === 'AbortError') {
-      err.code = 'ERR_TIMEOUT'
-    }
-    throw err
   } finally {
     clearTimeout(tid)
   }
