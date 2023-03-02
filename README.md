@@ -36,7 +36,7 @@ docker build -t backup .
 docker run -d backup
 ```
 
-### Test
+### Test
 
 With docker running on your machine you can run the tests with
 
