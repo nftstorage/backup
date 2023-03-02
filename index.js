@@ -27,10 +27,11 @@ const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
  * @param {string} config.s3BucketName S3 bucket name.
  * @param {string} [config.s3AccessKeyId]
  * @param {string} [config.s3SecretAccessKey]
+ * @param {string} [config.s3Endpoint]
  * @param {number} [config.concurrency]
  * @param {number} [config.batchSize]
  */
-export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, concurrency, batchSize }) {
+export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, s3Endpoint, concurrency, batchSize }) {
   const sourceDataFile = dataURL.substring(dataURL.lastIndexOf('/') + 1)
   const log = debug(`backup:${sourceDataFile}`)
   log('starting IPFS...')
@@ -43,6 +44,11 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
   const s3Conf = { region: s3Region }
   if (s3AccessKeyId && s3SecretAccessKey) {
     s3Conf.credentials = { accessKeyId: s3AccessKeyId, secretAccessKey: s3SecretAccessKey }
+  }
+  if (s3Endpoint) {
+    log('using s3 enpoint', s3Endpoint)
+    s3Conf.endpoint = s3Endpoint
+    s3Conf.forcePathStyle = true
   }
   const s3 = new S3Client(s3Conf)
 
@@ -60,7 +66,6 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
             log(`processing ${item.cid}`)
             try {
               const size = await retry(async () => {
-                await swarmConnect(ipfs, item, log)
                 let size = 0
                 const source = (async function * () {
                   for await (const chunk of exportCar(ipfs, item, log)) {
@@ -70,7 +75,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
                 })()
                 await s3Upload(s3, s3BucketName, item, source, log)
                 return size
-              })
+              }, { onFailedAttempt: info => log(info) })
               totalSuccessful++
               return { sourceDataFile, cid: item.cid, status: 'ok', size }
             } catch (err) {
@@ -169,21 +174,6 @@ async function * exportCar (ipfs, item, log) {
   } finally {
     clearInterval(reportInterval)
   }
-}
-
-/**
- * @param {IpfsClient} ipfs
- */
-async function swarmConnect (ipfs, item, log) {
-  if (!item.pinned_peers?.length) return
-  let connected = 0
-  for (const peer of item.pinned_peers) {
-    try {
-      await ipfs.swarmConnect(`/p2p/${peer}`)
-      connected++
-    } catch {}
-  }
-  log(`${connected} of ${item.pinned_peers.length} peers connected for ${item.cid}`)
 }
 
 /**

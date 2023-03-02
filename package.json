@@ -9,8 +9,10 @@
     "start": "npm-run-all -s ipfs-config -p start:*",
     "start:ipfs": "ipfs daemon",
     "start:backup": "node bin.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "ipfs-config":"ipfs init --profile=server --empty-repo && ./ipfs-config.sh"
+    "lint": "standard",
+    "test": "DEBUG=testcontainers:containers ava test.js",
+    "ipfs-config": "ipfs init --profile=server --empty-repo && ./ipfs-config.sh",
+    "make-peers": "node --no-warnings peers.js > peers.json"
   },
   "author": "Alan Shaw",
   "license": "(Apache-2.0 OR MIT)",
@@ -30,6 +32,8 @@
     "streaming-iterables": "^7.1.0"
   },
   "devDependencies": {
-    "standard": "^17.0.0"
+    "ava": "^5.2.0",
+    "standard": "^17.0.0",
+    "testcontainers": "^9.1.3"
   }
 }

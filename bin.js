@@ -11,6 +11,7 @@ startBackup({
   s3BucketName: mustGetEnv('S3_BUCKET_NAME'),
   s3AccessKeyId: process.env.S3_ACCESS_KEY_ID,
   s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  s3Endpoint: process.env.S3_ENDPOINT,
   concurrency: process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : undefined,
   batchSize: process.env.BATCH_SIZE ? parseInt(process.env.BATCH_SIZE) : undefined
 })

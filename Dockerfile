@@ -1,7 +1,8 @@
-FROM cimg/node:18.13.0
-USER circleci
-RUN mkdir -p /home/circleci/app
-WORKDIR /home/circleci/app
-COPY --chown=circleci:circleci package*.json *.js ./
-RUN npm install
-CMD [ "npm", "start" "--silent"]
+FROM node:18.14.2-alpine
+
+WORKDIR /usr/src/app
+COPY package*.json *.js ./
+RUN npm ci --omit=dev
+
+COPY *.js *.json *.sh ./
+CMD [ "npm", "start", "--silent"]

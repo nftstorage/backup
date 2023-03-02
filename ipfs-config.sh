@@ -43,4 +43,6 @@ ipfs config --json Datastore.Spec.mounts '[
   }
 ]'
 
+ipfs config --json Peering.Peers "$(cat peers.json)"
+
 echo "kubo config updated!"
