@@ -10,6 +10,7 @@ import batch from 'it-batch'
 import formatNumber from 'format-number'
 import { CID } from 'multiformats'
 import { IpfsClient } from './ipfs-client.js'
+import { createHealthCheckServer } from './health.js'
 
 const fmt = formatNumber()
 
@@ -31,9 +32,18 @@ const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
  * @param {number} [config.concurrency]
  * @param {number} [config.batchSize]
  */
-export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, s3Endpoint, concurrency, batchSize }) {
+export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, s3Endpoint, concurrency, batchSize, healthcheckPort = 9999 }) {
   const sourceDataFile = dataURL.substring(dataURL.lastIndexOf('/') + 1)
-  const log = debug(`backup:${sourceDataFile}`)
+  const gracePeriodMs = REPORT_INTERVAL * 2
+  const health = createHealthCheckServer({ sourceDataFile, gracePeriodMs })
+  const logger = debug(`backup:${sourceDataFile}`)
+  const log = (msg) => {
+    logger(msg)
+    health.heartbeat()
+  }
+  health.srv.listen(healthcheckPort, '127.0.0.1', () => {
+    log(`healthcheck server listening on ${healthcheckPort}`)
+  })
   log('starting IPFS...')
   const ipfs = new IpfsClient()
   await new Promise(resolve => setTimeout(resolve, 1000))
@@ -107,6 +117,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
     }
   )
   log('backup complete 🎉')
+  health.done()
 }
 
 /**

@@ -10,7 +10,7 @@
     "start:ipfs": "ipfs daemon",
     "start:backup": "node bin.js",
     "lint": "standard",
-    "test": "standard && DEBUG=testcontainers:containers ava test.js",
+    "test": "standard && DEBUG=testcontainers:containers ava",
     "ipfs-config": "ipfs init --profile=server --empty-repo && ./ipfs-config.sh",
     "make-peers": "node --no-warnings peers.js > peers.json"
   },
