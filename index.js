@@ -110,7 +110,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
  * @returns {AsyncIterable<InputData>}
  */
 async function * fetchCID (url, log) {
-  const res = await fetch(url)
+  const res = await retry(() => fetch(url), { onFailedAttempt: err => log(`error trying to fetchCID ${err.message} attempt: ${err.attemptNumber}`) })
   if (!res.ok || !res.body) {
     const errMessage = `failed to fetch CIDs: ${url}`
     log(errMessage)
