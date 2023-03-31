@@ -87,11 +87,15 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
       } finally {
         totalProcessed++
         log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
-        for await (const res of ipfs.repoGc()) {
-          if (res.err) {
-            log(`failed to GC ${res.cid}:`, res.err)
-            continue
+        try {
+          for await (const res of ipfs.repoGc()) {
+            if (res.err) {
+              log(`failed to GC ${res.cid}:`, res.err)
+              continue
+            }
           }
+        } catch (err) {
+          log(`GC error ${err.message || err}`)
         }
       }
     }),
@@ -110,14 +114,19 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
  * @returns {AsyncIterable<InputData>}
  */
 async function * fetchCID (url, log) {
-  const res = await retry(() => fetch(url), { onFailedAttempt: err => log(`error trying to fetchCID ${err.message} attempt: ${err.attemptNumber}`) })
-  if (!res.ok || !res.body) {
-    const errMessage = `failed to fetch CIDs: ${url}`
-    log(errMessage)
-    throw new Error(errMessage)
+  try {
+    const res = await retry(() => fetch(url), { onFailedAttempt: err => log(`error trying to fetchCID ${err.message} attempt: ${err.attemptNumber}`) })
+    if (!res.ok || !res.body) {
+      const errMessage = `failed to fetch CIDs: ${url}`
+      log(errMessage)
+      throw new Error(errMessage)
+    }
+    // @ts-ignore
+    yield * parse(res.body)
+  } catch (err) {
+    log(`fetchCID error ${err.message}`)
+    throw (err)
   }
-  // @ts-ignore
-  yield * parse(res.body)
 }
 
 /** @param {string} cid */
