@@ -7,4 +7,5 @@ RUN npm ci --omit=dev
 COPY *.js *.json *.sh ./
 CMD [ "npm", "start", "--silent"]
 
+EXPOSE 9999
 HEALTHCHECK --interval=60s --timeout=1s --start-period=5s --retries=3 CMD [ "curl" "https://127.0.0.1:9999" "--fail" ]

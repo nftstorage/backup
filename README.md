@@ -14,7 +14,6 @@ S3_ACCESS_KEY_ID=<value> # optional
 S3_SECRET_ACCESS_KEY=<value> # optional
 S3_ENDPOINT=<url> # optional, used to test against minio
 CONCURRENCY=<number> # optional
-BATCH_SIZE=<number> # optional
 ```
 
 Start the backup:

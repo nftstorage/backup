@@ -6,7 +6,6 @@ import retry from 'p-retry'
 import { transform } from 'streaming-iterables'
 import { parse } from 'it-ndjson'
 import { pipe } from 'it-pipe'
-import batch from 'it-batch'
 import formatNumber from 'format-number'
 import { CID } from 'multiformats'
 import { IpfsClient } from './ipfs-client.js'
@@ -14,7 +13,6 @@ import { createHealthCheckServer } from './health.js'
 
 const fmt = formatNumber()
 
-const BATCH_SIZE = 100
 const CONCURRENCY = 10
 const BLOCK_TIMEOUT = 1000 * 30 // timeout if we don't receive a block after 30s
 const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
@@ -30,9 +28,9 @@ const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
  * @param {string} [config.s3SecretAccessKey]
  * @param {string} [config.s3Endpoint]
  * @param {number} [config.concurrency]
- * @param {number} [config.batchSize]
+ * @param {number} [config.healthcheckPort]
  */
-export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, s3Endpoint, concurrency, batchSize, healthcheckPort = 9999 }) {
+export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKeyId, s3SecretAccessKey, s3Endpoint, concurrency, healthcheckPort = 9999 }) {
   const sourceDataFile = dataURL.substring(dataURL.lastIndexOf('/') + 1)
   const gracePeriodMs = REPORT_INTERVAL * 2
   const health = createHealthCheckServer({ sourceDataFile, gracePeriodMs })
@@ -67,52 +65,39 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
   await pipe(
     fetchCID(dataURL, log),
     filterAlreadyStored(s3, s3BucketName, log),
-    source => batch(source, batchSize ?? BATCH_SIZE),
-    async function (source) {
-      for await (const batch of source) {
-        await pipe(
-          batch,
-          transform(concurrency ?? CONCURRENCY, async (item) => {
-            log(`processing ${item.cid}`)
-            try {
-              const size = await retry(async () => {
-                let size = 0
-                const source = (async function * () {
-                  for await (const chunk of exportCar(ipfs, item, log)) {
-                    size += chunk.length
-                    yield chunk
-                  }
-                })()
-                await s3Upload(s3, s3BucketName, item, source, log)
-                return size
-              }, { onFailedAttempt: info => log(info) })
-              totalSuccessful++
-              return { sourceDataFile, cid: item.cid, status: 'ok', size }
-            } catch (err) {
-              log(`failed to backup ${item.cid}`, err)
-              return { sourceDataFile, cid: item.cid, status: 'error', error: err.message }
-            } finally {
-              totalProcessed++
-              log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
+    transform(concurrency ?? CONCURRENCY, async (item) => {
+      log(`processing ${item.cid}`)
+      try {
+        const size = await retry(async () => {
+          let size = 0
+          const source = (async function * () {
+            for await (const chunk of exportCar(ipfs, item, log)) {
+              size += chunk.length
+              yield chunk
             }
-          }),
-          async function (source) {
-            for await (const item of source) {
-              console.log(JSON.stringify(item))
-            }
-          }
-        )
-
-        log(`garbage collecting batch of ${batch.length} root CIDs`)
-        let count = 0
+          })()
+          await s3Upload(s3, s3BucketName, item, source, log)
+          return size
+        }, { onFailedAttempt: info => log(info) })
+        totalSuccessful++
+        return { sourceDataFile, cid: item.cid, status: 'ok', size }
+      } catch (err) {
+        log(`failed to backup ${item.cid}`, err)
+        return { sourceDataFile, cid: item.cid, status: 'error', error: err.message }
+      } finally {
+        totalProcessed++
+        log(`processed ${totalSuccessful} of ${totalProcessed} CIDs successfully`)
         for await (const res of ipfs.repoGc()) {
           if (res.err) {
             log(`failed to GC ${res.cid}:`, res.err)
             continue
           }
-          count++
         }
-        log(`garbage collected ${count} CIDs`)
+      }
+    }),
+    async function (source) {
+      for await (const item of source) {
+        console.log(JSON.stringify(item))
       }
     }
   )
