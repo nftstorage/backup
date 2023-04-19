@@ -13,7 +13,7 @@ import { createHealthCheckServer } from './health.js'
 
 const fmt = formatNumber()
 
-const CONCURRENCY = 10
+const CONCURRENCY = 5
 const BLOCK_TIMEOUT = 1000 * 30 // timeout if we don't receive a block after 30s
 const REPORT_INTERVAL = 1000 * 60 // log download progress every minute
 
