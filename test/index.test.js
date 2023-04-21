@@ -1,5 +1,6 @@
 import { GenericContainer, Wait, Network } from 'testcontainers'
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3'
+import { fetchData } from '../index.js'
 import test from 'ava'
 
 test('backup a dag', async t => {
@@ -32,7 +33,7 @@ test('backup a dag', async t => {
     BATCH_SIZE: 1,
     CONCURRENCY: 1,
     DEBUG: 'backup:*',
-    DATA_URL: 'https://bafybeiha7xoedojqjz6ghxdtbf7yx2eklwo7db36772u3odrjusqck3ljm.ipfs.w3s.link/ipfs/bafybeiha7xoedojqjz6ghxdtbf7yx2eklwo7db36772u3odrjusqck3ljm/nft-0.json',
+    DATA_URL: 'https://bafybeiha7xoedojqjz6ghxdtbf7yx2eklwo7db36772u3odrjusqck3ljm.ipfs.w3s.link/nft-0.json',
     S3_ENDPOINT: s3Endpoint,
     S3_REGION: region,
     S3_BUCKET_NAME: bucketName,
@@ -66,3 +67,12 @@ async function createBucket (bucketName, minio, accessKeyId, secretAccessKey, re
   })
   return s3.send(new CreateBucketCommand({ Bucket: bucketName }))
 }
+
+test('fetchData', async t => {
+  const data = await fetchData('https://bafybeiavn43yjnai7dhtyrxl5n3euhcsyzxz34gpg44nvy7x2ugs5j7fg4.ipfs.w3s.link/x', console.log)
+  const chunks = []
+  for await (const chunk of data) {
+    chunks.push(chunk)
+  }
+  t.is(chunks.join(''), 'test\n')
+})

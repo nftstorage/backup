@@ -1,5 +1,6 @@
 import debug from 'debug'
-import { Readable } from 'stream'
+import { Readable, Writable } from 'stream'
+import { createReadStream, createWriteStream } from 'fs'
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import retry from 'p-retry'
@@ -35,8 +36,8 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
   const gracePeriodMs = REPORT_INTERVAL * 2
   const health = createHealthCheckServer({ sourceDataFile, gracePeriodMs })
   const logger = debug(`backup:${sourceDataFile}`)
-  const log = (msg) => {
-    logger(msg)
+  const log = (...args) => {
+    logger(...args)
     health.heartbeat()
   }
   health.srv.listen(healthcheckPort, '127.0.0.1', () => {
@@ -62,6 +63,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
 
   let totalProcessed = 0
   let totalSuccessful = 0
+
   await pipe(
     fetchCID(dataURL, log),
     filterAlreadyStored(s3, s3BucketName, log),
@@ -114,19 +116,32 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
  * @returns {AsyncIterable<InputData>}
  */
 async function * fetchCID (url, log) {
-  try {
-    const res = await retry(() => fetch(url), { onFailedAttempt: err => log(`error trying to fetchCID ${err.message} attempt: ${err.attemptNumber}`) })
-    if (!res.ok || !res.body) {
-      const errMessage = `failed to fetch CIDs: ${url}`
-      log(errMessage)
-      throw new Error(errMessage)
+  const data = await fetchData(url, log)
+  // @ts-ignore
+  yield * parse(data)
+}
+
+/**
+ * @param {string|URL} dataURL
+ * @param {() => void)} log
+ */
+export async function fetchData (dataURL, log) {
+  log('fetching dataURL %s', dataURL)
+  const fileName = 'data'
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await fetch(dataURL)
+      if (!res.ok || !res.body) {
+        const errMessage = `${res.status} ${res.statusText} ${dataURL}`
+        throw new Error(errMessage)
+      }
+      await res.body.pipeTo(Writable.toWeb(createWriteStream(fileName)))
+      return createReadStream(fileName)
+    } catch (err) {
+      log('Error fetchData: %o', err)
     }
-    // @ts-ignore
-    yield * parse(res.body)
-  } catch (err) {
-    log(`fetchCID error ${err.message}`)
-    throw (err)
   }
+  log('fetchData: giving up. could no get %s', dataURL)
 }
 
 /** @param {string} cid */
