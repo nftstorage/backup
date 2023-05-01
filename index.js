@@ -81,7 +81,7 @@ export async function startBackup ({ dataURL, s3Region, s3BucketName, s3AccessKe
           await s3Upload(s3, s3BucketName, item, source, log)
           return size
         }, {
-          onFailedAttempt: info => log(info),
+          onFailedAttempt: info => log('failed attempt exportCar: %o', info),
           retries: 2
         })
         totalSuccessful++
